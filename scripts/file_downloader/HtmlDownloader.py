@@ -3,15 +3,14 @@ import concurrent.futures
 import json
 import os
 import re
-import sys
 import threading
 from datetime import datetime
 from ssl import SSLError
-from selenium.webdriver.chrome.options import Options
 from urllib.parse import urlparse
 
 import requests
 from bs4 import BeautifulSoup
+from selenium.webdriver.chrome.options import Options
 
 options = Options()
 options.add_argument('--headless')
@@ -41,7 +40,7 @@ class HtmlDownloader:
         url_set = {}
         for url in urlList:
             if url in url_set:
-                continue;
+                continue
             else:
                 url_set[url] = 'T'
         return url_set

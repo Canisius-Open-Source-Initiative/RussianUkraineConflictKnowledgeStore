@@ -3,7 +3,8 @@
 This project is focused on creation of a custom knowledge store about the Russian and Ukraine conflict.  It serves three audiences:
 
 - Those with an interest in the Russian and Ukraine conflict,
-- Those who want to learn how to create a custom knowledge store relevant to a heterogeneous set of documents,
+- Those who want to learn how to create a custom knowledge store relevant to a heterogeneous set of documents otherwise knowns as a RAG (Retrieval-Augmented Generation) pipeline,
+- Those who want to learn how to run a large language model locally - right on their own laptop with Ollama,
 - Those who want to know "How good are LLMs at auto-generating code?"
 
 It uses a 240 page chronology of the major events of the conflict as the knowledge store core.  This open source document was developed by researchers at the National Security Archives.  It is the best open source chronology of the conflict's events through May 2023.  Critically, it contains links to the original articles where the event summaries were distilled from.  Here is a link to the PDF chronology document: 
@@ -18,17 +19,14 @@ The project transforms the PDF into a knowledge base in three discrete steps dep
 
 ![Steps to Create the Russia Vs. Ukraine Knowledge Store](images/KnowledgeStoreCreation.png)
 
-**1. Transform**
+**1. Transform:**
+This step takes the PDF and transforms it into a comma separated values (CSV) file. This required creating Python code to identify the dates, the narratives, and collecting the URLs for the linked documents from the PDF itself.  This is an all too common and tedious task for analysts; reverse engineering a PDF file back to its original form to extract critical content.  LLMs assisted greatly with this task and recommend to the Canisius researchers code to perform the intricate translation.  The CSV provides the cornerstone for the knowledge base.  It also provides the complete listing of URLs to the vast set of amplifying documents.
 
-This step takes the PDF and transforms it into a CSV file. This required identifying the dates, the narratives, and collecting the URLs for the linked documents from the PDF.  The generated CSV file is not 100% precise as some rows do not represent specific events.  This is due to the regex over-identifying dates.  However, it is certainly able to genereate a very good CSV representation (around 98% accurate) of the original pdf that contains: 1. Date, 2. Description, and 3. Supporting URLS for event descriptions.  This CSV provides the core set of documents for the knowledge store.
+**2. Collect:**
+This step downloads the amplifying documents referenced in the chronology. This is another familiar step for analysts; assembly of a document corpus to answer questions about a domain.  Researchers used LLMs to create the Python code that visits each URL and downloads the target document. PDFs are stored in their raw form. Web pages are stored as text extraction representations wrapped in JSON.  Roughly 1/3 of the 1,223 unique URLs are not fruitful as they are either no longer active or are pay wall blocked.
 
-**2. Collect**
-
-This step downloads the supporting documents from the Internet.  Documents will only be downloaded if they still exist and are not pay-wall blocked.  The files are stored locally.  PDFs are stored in their raw form.  HTML pages are stored as text extraction representations wrapped in JSON.  The project uses Python threads to download the resources pointed to by URLs.
-
-**3. Create**
-
-The final step is to create a knowledge store.  The project simply embeds the document corpus using OpenAI's `text-embedding-ada-002` model.  A vast majority of the text in the collected documents is well-written, English narratives.  The `text-embedding-ada-002` model does quite well at embedding the documents for question and answering.  The projet provides three examples of how to use the embedded documents. It demystifies what is meant by "context" and what a custom knowledge store is really all about.
+**3. Create:**
+The final step involves creating a knowledge store for the LLM-backed chat agent. We use a RAG pipeline to implement the LLM-backed chat agent. A RAG implementation embeds a document corpus within the context of an existing LLM model. It does not train a new LLM model on the document set; rather, it expands an existing LLM model with a new document set. This approach is satisfactory for our implementation because the vast majority of the text in the collected documents consists of well-written English narratives. It aligns well with the linguistic constructs present in the training data of the two LLMs we have chosen to serve as our chat bots. The next section explains what embedding a document corpus entails.
 
 ## Installation and Running the Code ##
 
@@ -49,7 +47,10 @@ The `scripts` folder holds the project source code. The folder holds a file name
 - `PDFS_FOLDER` = Folder that holds the downloaded PDF files.
 - `JSONS_FOLDER` = Folder that holds the web page text extractions wrapped in JSON.
 - `OPENAI_API_KEY` = An Open AI key.  Be careful with it!  Don't share it!
-- `CHROMA_DB_PERSIST` = Folder that holds the chroma db.  
+- `CHROMA_DB_PERSIST` = Folder that holds the chroma db (used for OpenAI embeddings only.  MPNet and MiniLM use a ChromaDB container with collections persisted across restarts).  
+- `OPENAI_EMBEDDING_MODEL` = OpenAI embedding model to use.
+- `CHROMA_DB_MPNET_MODEL_NAME` = The MPNet embedding model to use [3].
+- `CHROMA_DB_MINILM_MODEL_NAME` = The MiniLM embedding model to use [4].
 
 **Step 3. Create events timeline CSV file**
 
@@ -76,7 +77,7 @@ HTML pages are scraped using BeautifulSoup.  Here, the implementation is basic. 
 
 To run the download scripts, simply enable #2 and #3 in the script `Driver.py`.
 
-**Step 4. Creating the Knowledge Store**
+**Step 5. Creating the Knowledge Store**
 
 This is the goal of the project; creation of a knowledge store.   The folder `knowledge_store_examples` contains a series of progressively complex examples of question and answering.  
 
@@ -116,9 +117,9 @@ The (clear) drawback of this approach are the fact that the ChromaDB needs to be
 
 _Note: The OpenAI Cost Using ChatGPT 3.5 to run this demo:  A few cents if that_
 
-***Vector Store as Context Unpersisted***
+***Vector Store as Context Persisted OpenAI Variant***
 
-To run this demo, enabled #6 in the `Driver.py` class.
+To run this demo, enable #6 in the `Driver.py` class.
 
 The class `VectorStoreAsContextPersisted.py` creates embeddings for all the PDF files, the HTML extractions, and the `RussiaVsUkraineEventTimeline.csv`.  This means the user will have a much larger ChromaDB that will cost slightly more to generate.  
 
@@ -128,11 +129,46 @@ The image shows the running script.
 
 ![Questions and Answers with Provenance](images/QA_Example.png)
 
-Here, a user has entered a question.  It is a typical LLM backed question / answering system.  The context of the question helps to define the expressiveness of the answer.  
+Here, a user has entered a question.  It is a typical LLM backed question / answering system.  The context of the question helps to define the expressiveness of the answer.  The figure belows shows what happens.
 
-Also note the section at bottom that lists provenance.  It includes the list of documents from the ChromaDB that it used to answer the question.  This is a critical piece of the puzzle - Does the LLM report where its answer came from?  In the example image above, 3 documents were used to create the answer.
+![How the Chat Agent Fields Questions](images/KnowledgeStoreInAction.png)
+
+Also note the section at bottom that lists provenance.  It includes the list of documents from the ChromaDB that it used to answer the question.  This is a critical piece of the puzzle - Does the LLM report where its answer came from?  In the example image above, 3 distinct documents were used to create the answer.
 
 _Note: The OpenAI Cost Using ChatGPT 3.5 to run this demo:  Under a dollar.  It is a onetime expense as once the ChromaDB is created, it is persisted._
+
+***Vector Store as Context Persisted MPNet and MiniLM Variant***
+
+To run this demo, enable #6 in the `Driver.py` class.  However, you need to do a few items first.  This is an involved
+demo - part of the inspiration taken from a post by Matt Brazel on medium.com [1].
+
+The figure above that shows how the chat agent fields questions provides a picture of what is happening.  In a nutshell:
+
+1. **Run ChromaDB** - A docker container for Chroma is required.  So, you need a Docker engine running.  The specific command used to deploy the container is this:
+```
+docker run -d -p 8000:8000 -v chromadb_data:/app/data -e PERSIST_DIRECTORY=/app/data chromadb/chroma
+```
+It will run the container, open up port 8000 so your localhost may connect, and then uses the PERSIST_DIRECTORY environment variable directive.  Without this, you will lose any collection you create and persist in the ChromaDB docker instance.  So, if you create a collection and shut down the ChromaDB container - that collection is gone as well!  Note, for this project creating the ChromaDB collection for MPNet took over 7 hours on a decent Mac!  You probably want to persist it.
+2. **Run Ollama** - You will need to install and run Ollama [2].  Follow Matt's article to show you how [1].  The key is to have Ollama serving and listening for requests and running the Mistral LLM.  Note, this could be in a Docker container as well.
+3. **Name the ChromaDB Collections to be Created** Next, you will need to set the names for the collections you will create in the ChromaDB.  In the cofiguration file these are:
+- `CHROMA_DB_MPNET_COLLECTION_NAME` = 'mpnet'
+- `CHROMA_DB_MINILM_COLLECTION_NAME` = 'minilm'
+Feel free to leave it named these, or change them to whatever you want.
+4. **Build the RAG Server Docker Container**  Next, you need to build the Docker container that will run the RAG server to send questions to Mistral LLM.  You may need to study out how this works.  Matt's article [1] is required reading before starting this step.  Here is what will happen:
+- The Docker container will be built.
+- The script rag.py will be run as the second to last step.  This script is critically important.  It reads in the files for the Russian and Ukraine timeline, and uses the MiniLM and MPNet embedding functions to embed them.  It stores the results as a collection in the ChromaDB.  Note - this takes a while to run!  You may wish to create folders with smaller sample sizes (say 5 or 10 files and a timeline CSV file of 50 rows) to make sure it works.  This can be accomplished by editing the config file.  Be patient, if you are new to Docker the learning curve will be moderate.  However, you will learn a lot along the way.  The command to build the RAG server is:
+```docker build -t rag . > build_results.txt 2>&1```
+Here the build console output is sent to build_results.txt.  If you tail this file, you can see any errors that arise and fix them quickly.
+5. **Run the RAG Server** - If the container builds successfully, it means the ChromaDB has been populated as well.  Next, run the container with this command:
+```docker run -p 5001:5000 rag```
+This will start the container that hosts the RAG server and make it available to the localhost - in the example above on port 5001.
+6. **Run Driver.py**  If steps 1 - 5 are completed and the two Docker containers are running, the chat agent will send any question asked to OpenAI's model using its embdeddings, and then twice to Mistral via Ollama - one using the MiniLM embeddings and then again using the MPNet embeddings.  You now have three answers to your question to compare!
+
+Here is an example of the output when the Mistral LLM is asked to discuss the Russian and Ukraine conflict.  Two replies come back, one using the MPNet embeddings and the other the MiniLM embeddings:
+
+![How the Chat Agent Fields Questions With Mistral](images/KnowledgeStoreMPNetMiniLM.png)
+
+Success - you are running the pipeline completely locally!  You now have at your fingertips a pipeline and LLM chat agent on par with ChatGPT 4.0!
 
 ## Use of Automated Code for Data Assembly & Cleaning ##
 
@@ -159,3 +195,10 @@ There are many.  A short list of next steps inlcudes:
 - Adding interview transciptions to the knowledge store.  This is critical.  Many of the articles mention speeches or interviews.  It would be trivially easy to use OpenAI's Whisper to translate the audio to text and then provide those as additional documents.
 - Adding Langchain Agents and Templates. This would be focused toward development of a soup-to-nuts report authoring capability.  It is more advanced and would require question chaining and developing different sections of a report.
 - Adding an abiity to grow the timeline.  This is certainly in the 'more to come' section for sure!  There is a path to getting the LLMs to search content and keep the timeline updated.
+
+## References ##
+
+- [1] Link to article: https://medium.com/@mbrazel/open-source-self-hosted-rag-llm-server-with-chromadb-docker-ollama-7e6c6913da7a
+- [2] Link to Ollama: https://github.com/ollama/ollama
+- [3] Link to MPNet paper: https://arxiv.org/abs/2004.09297
+- [4] Link to MiniLM paper: https://arxiv.org/abs/2002.10957
