@@ -1,4 +1,4 @@
-# Russian Ukraine Conflict Knowledge Store #
+# Russo-Ukrainian Conflict Knowledge Store #
 
 This project is focused on creation of a custom knowledge store about the Russian and Ukraine conflict.  It serves three audiences:
 
