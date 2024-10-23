@@ -10,7 +10,7 @@ class LocalLLMQueryClient:
 
     def check_server(self):
         try:
-            url = f"{self.server_url}/query"
+            url = f"{self.server_url}/queryminilm"
             response = requests.get(url)
             if response.status_code == 405:
                 print("Server is accessible.")
@@ -22,8 +22,15 @@ class LocalLLMQueryClient:
             print("Failed to connect to the server.")
             return False
 
-    def send_query(self, query):
-        url = f"{self.server_url}/query"
+    def send_minilm_query(self, query):
+        url = f"{self.server_url}/queryminilm"
+        headers = {"Content-Type": "application/json"}
+        payload = {"query": query}
+        response = requests.post(url, headers=headers, data=json.dumps(payload))
+        return response.json()
+
+    def send_mpnet_query(self, query):
+        url = f"{self.server_url}/querympnet"
         headers = {"Content-Type": "application/json"}
         payload = {"query": query}
         response = requests.post(url, headers=headers, data=json.dumps(payload))
@@ -33,6 +40,9 @@ class LocalLLMQueryClient:
         formatted_response = json.dumps(response, indent=4)
         response_dict = json.loads(formatted_response)
         response_str = response_dict['response']
+        print("\nResponse:\n")
+        print(response_str)
+        response_str = response_dict['docs']
         print("\nResponse:\n")
         print(response_str)
 

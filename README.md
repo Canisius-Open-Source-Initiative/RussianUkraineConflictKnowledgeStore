@@ -1,4 +1,7 @@
 # Russo-Ukrainian Conflict Knowledge Store #
+> 📁 **Resources Directory**  
+> Resources referenced in the *CrossTalk* article "Defending the Dnieper with Artificial Intelligence" are available [here](./CrossTalkSampleQuestions).  
+
 
 This project is focused on creation of a custom knowledge store about the Russian and Ukraine conflict.  It serves three audiences:
 

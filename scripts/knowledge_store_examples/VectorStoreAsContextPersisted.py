@@ -1,4 +1,5 @@
 import os
+import json
 
 from langchain.chains import RetrievalQA
 from langchain.chat_models import ChatOpenAI
@@ -54,7 +55,7 @@ class VectorStoreAsContextPersisted:
         QA_CHAIN_PROMPT = PromptTemplate.from_template(template)# Run chain
         qa_chain = RetrievalQA.from_chain_type(
             llm,
-            retriever=db.as_retriever(),
+            retriever=db.as_retriever(search_kwargs={"k": 20}),
             return_source_documents=True,
             chain_type_kwargs={"prompt": QA_CHAIN_PROMPT}
         )
@@ -81,8 +82,38 @@ class VectorStoreAsContextPersisted:
                 # Check the source document from where we
                 sources = result["source_documents"]
                 for source in sources:
-                    print(source.metadata)
+                    metadata = source.metadata
+                    source_field = metadata['source']
+                    filename = os.path.basename(source_field)
+                    print(filename)
                 print("Answer with local Mistral instance and MiniLM and MPNet embeddings:")
-                if rag_qc.check_server() == True:
-                    response = rag_qc.send_query(user_input)
-                    rag_qc.pretty_print_response(response)
+                #if rag_qc.check_server() == True:
+                response = rag_qc.send_minilm_query(user_input)
+                formatted_response = json.dumps(response, indent=4)  # Serialize the JSON response
+                response_dict = json.loads(formatted_response)  # Deserialize it back into a Python dictionary
+
+                # Extract the 'docs' field as a list from the dictionary
+                docs_list = response_dict.get('docs',
+                                              [])  # Use .get() to safely retrieve 'docs' or an empty list if 'docs' doesn't exist
+
+                #print(docs_list)
+                docs = docs_list.split(',')
+                for doc in docs:
+                    print(doc)
+                #rag_qc.pretty_print_response(response)
+
+
+                print("----------------------")
+                response = rag_qc.send_mpnet_query(user_input)
+                #rag_qc.pretty_print_response(response)
+                formatted_response = json.dumps(response, indent=4)  # Serialize the JSON response
+                response_dict = json.loads(formatted_response)  # Deserialize it back into a Python dictionary
+
+                # Extract the 'docs' field as a list from the dictionary
+                docs_list = response_dict.get('docs',
+                                              [])  # Use .get() to safely retrieve 'docs' or an empty list if 'docs' doesn't exist
+
+                #print(docs_list)
+                docs = docs_list.split(',')
+                for doc in docs:
+                    print(doc)

@@ -1,4 +1,5 @@
 import logging
+import os
 
 import chromadb
 from chromadb.config import Settings
@@ -26,6 +27,30 @@ def create_chroma_db(embedding_function, collection_name):
 
 
 def Extract_context(query, client):
+    fullcontent = ''
+    fullcontent = '. '.join([fullcontent, 'Client 1'])
+
+    # Increase to 20 documents
+    docs = client.similarity_search(query, k=20)
+
+    # Filter documents based on a hypothetical similarity score threshold
+    threshold = 0.7
+    filtered_docs = [doc for doc in docs if doc.metadata.get('similarity_score', 1.0) >= threshold]
+
+    doc_names = set()
+
+    for doc in filtered_docs:
+        fullcontent = '. '.join([fullcontent, doc.page_content])
+        doc_metadata = doc.metadata
+        doc_name = doc_metadata.get('source', 'Unknown')  # or any other identifier you prefer
+        filename = os.path.basename(doc_name)
+        # Names represent the provenance
+        doc_names.add(filename)
+
+    return fullcontent, list(doc_names)
+
+
+def Extract_context_prior(query, client):
 
     fullcontent = ''
 
@@ -102,8 +127,8 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-@app.route('/query', methods=['POST'])
-def respond_to_query():
+@app.route('/queryminilm', methods=['POST'])
+def respond_to_minilm_query():
     config_instance = Config("scripts/config_docker.ini")
     if request.method == 'POST':
         data = request.get_json()
@@ -114,23 +139,37 @@ def respond_to_query():
         # Create clients with different embedding models
         minilm_embedding_function = MiniLMCustomEmbeddingFunction(config_instance.chroma_db_minilm_model_name)
         client_miniLM = create_chroma_db(minilm_embedding_function, config_instance.chroma_db_minilm_collection_name)
+
+        context, doc_names = Extract_context(query, client_miniLM)
+        logger.debug("About to call generate_rag_response")
+        # Generate response using the context and the query
+        response = generate_rag_response(context, query)
+        logger.debug(response)
+        # Include document names in the response
+        doc_names_str = ",".join(doc_names)
+        return {"response": response, "docs":doc_names_str}
+
+@app.route('/querympnet', methods=['POST'])
+def respond_to_mpnet_query():
+    config_instance = Config("scripts/config_docker.ini")
+    if request.method == 'POST':
+        data = request.get_json()
+        # Assuming the query is sent as a JSON object with a key named 'query'
+        query = data.get('query')
+
+        # Extract context using ChromaDB
+        # Create clients with different embedding models
         mpnet_embedding_function = MPNetCustomEmbeddingFunction(config_instance.chroma_db_mpnet_model_name)
         client_mpnet = create_chroma_db(mpnet_embedding_function, config_instance.chroma_db_mpnet_collection_name)
-        dbs = [client_miniLM, client_mpnet]
-        response = ''
-        for db in dbs:
-            context, doc_names = Extract_context(query, db)
-            logger.debug("About to call generate_rag_response")
-            # Generate response using the context and the query
-            generated_response = generate_rag_response(context, query)
-            logger.debug(generated_response)
 
-            # Include document names in the response
-            doc_names_str = "\n".join(doc_names)
-            local_response = f'This is the response to your query:\n{generated_response}\n\nDocuments used:\n{doc_names_str}\n\n+++++++++++++++'
-            response = '. '.join([response, local_response])
-        return {"response": response}
-
+        context, doc_names = Extract_context(query, client_mpnet)
+        logger.debug("About to call generate_rag_response")
+        # Generate response using the context and the query
+        response = generate_rag_response(context, query)
+        logger.debug(response)
+        # Include document names in the response
+        doc_names_str = ",".join(doc_names)
+        return {"response": response, "docs":doc_names_str}
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0')
